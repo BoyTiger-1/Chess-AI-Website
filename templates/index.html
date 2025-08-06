@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Unbeatable Chess AI</title>
+  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
+  <style>
+    body { font-family: Arial; text-align: center; background: #eee; }
+    #board { margin: 30px auto; width: 600px; }
+    button, select { padding: 10px; margin: 10px; font-size: 16px; }
+    #status { font-weight: bold; color: #d00; margin: 10px; }
+    @media (max-width: 640px) { #board { width: 300px; } }
+  </style>
+</head>
+<body>
+  <h1>♚ Chess AI (Unbeatable Mode) ♚</h1>
+  <select id="difficulty">
+    <option value="easy">Beginner</option>
+    <option value="medium">Intermediate</option>
+    <option value="hard">Advanced</option>
+    <option value="unbeatable" selected>Unbeatable</option>
+  </select>
+  <button id="resetBtn">Reset Game</button>
+  <div id="status">Your move!</div>
+  <div id="board"></div>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+  <script>
+    let board = null;
+    let game = new Chess();
+    board = Chessboard('board', {
+      draggable: true,
+      position: 'start',
+      onDragStart: (source, piece) => !game.game_over() && piece.search(/^b/) === 0,
+      onDrop: function(source, target) {
+        const move = game.move({ from: source, to: target, promotion: 'q' });
+        if (move === null) return 'snapback';
+        fetch('/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            move: source + target + (move.promotion || ''),
+            level: document.getElementById('difficulty').value
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          game.load(data.fen);
+          board.position(data.fen);
+          if (data.ai_move) {
+            game.move({ from: data.ai_move.slice(0,2), to: data.ai_move.slice(2,4) });
+            board.position(game.fen());
+          }
+          document.getElementById('status').textContent = data.game_over ? `Game Over: ${data.result}` : 'Your turn';
+        });
+      },
+      onSnapEnd: () => board.position(game.fen())
+    });
+
+    document.getElementById('resetBtn').onclick = () => {
+      fetch('/reset', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' })
+        .then(() => { game.reset(); board.position('start'); });
+    };
+
+    window.onload = window.onresize = () => board.resize();
+  </script>
+</body>
+</html>
